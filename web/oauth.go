@@ -4,6 +4,7 @@
 package web
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -247,31 +248,39 @@ func completeOAuth(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	service := c.Params.Service
+	var body io.ReadCloser
+	var teamId string
+	var props map[string]string
+	var err *model.AppError
+	if service == model.SERVICE_TFCONNECT {
+		signedAttempt := r.URL.Query().Get("signedAttempt")
 
-	oauthError := r.URL.Query().Get("error")
-	if oauthError == "access_denied" {
-		utils.RenderWebError(c.App.Config(), w, r, http.StatusTemporaryRedirect, url.Values{
-			"type":    []string{"oauth_access_denied"},
-			"service": []string{strings.Title(service)},
-		}, c.App.AsymmetricSigningKey())
-		return
+		body, teamId, props, err = c.App.TFAuthorizeOAuthUser(w, r, service, signedAttempt)
+	} else {
+		oauthError := r.URL.Query().Get("error")
+		if oauthError == "access_denied" {
+			utils.RenderWebError(c.App.Config(), w, r, http.StatusTemporaryRedirect, url.Values{
+				"type":    []string{"oauth_access_denied"},
+				"service": []string{strings.Title(service)},
+			}, c.App.AsymmetricSigningKey())
+			return
+		}
+
+		code := r.URL.Query().Get("code")
+		if len(code) == 0 {
+			utils.RenderWebError(c.App.Config(), w, r, http.StatusTemporaryRedirect, url.Values{
+				"type":    []string{"oauth_missing_code"},
+				"service": []string{strings.Title(service)},
+			}, c.App.AsymmetricSigningKey())
+			return
+		}
+
+		state := r.URL.Query().Get("state")
+
+		uri := c.GetSiteURLHeader() + "/signup/" + service + "/complete"
+
+		body, teamId, props, err = c.App.AuthorizeOAuthUser(w, r, service, code, state, uri)
 	}
-
-	code := r.URL.Query().Get("code")
-	if len(code) == 0 {
-		utils.RenderWebError(c.App.Config(), w, r, http.StatusTemporaryRedirect, url.Values{
-			"type":    []string{"oauth_missing_code"},
-			"service": []string{strings.Title(service)},
-		}, c.App.AsymmetricSigningKey())
-		return
-	}
-
-	state := r.URL.Query().Get("state")
-
-	uri := c.GetSiteURLHeader() + "/signup/" + service + "/complete"
-
-	body, teamId, props, err := c.App.AuthorizeOAuthUser(w, r, service, code, state, uri)
-
 	action := ""
 	if props != nil {
 		action = props["action"]
@@ -287,7 +296,6 @@ func completeOAuth(c *Context, w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
 	user, err := c.App.CompleteOAuth(service, body, teamId, props)
 	if err != nil {
 		err.Translate(c.App.T)

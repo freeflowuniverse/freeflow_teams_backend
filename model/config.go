@@ -45,6 +45,7 @@ const (
 	SERVICE_GITLAB    = "gitlab"
 	SERVICE_GOOGLE    = "google"
 	SERVICE_OFFICE365 = "office365"
+	SERVICE_TFCONNECT = "tfconnect"
 
 	GENERIC_NO_CHANNEL_NOTIFICATION = "generic_no_channel"
 	GENERIC_NOTIFICATION            = "generic"
@@ -220,6 +221,10 @@ const (
 	GOOGLE_SETTINGS_DEFAULT_AUTH_ENDPOINT     = "https://accounts.google.com/o/oauth2/v2/auth"
 	GOOGLE_SETTINGS_DEFAULT_TOKEN_ENDPOINT    = "https://www.googleapis.com/oauth2/v4/token"
 	GOOGLE_SETTINGS_DEFAULT_USER_API_ENDPOINT = "https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses,nicknames,metadata"
+
+	TFCONNECT_SETTINGS_DEFAULT_SCOPE           = "{\"user\": true, \"email\": true}"
+	TFCONNECT_SETTINGS_DEFAULT_SERVER_URL      = "https://login.threefold.me"
+	TFCONNECT_SETTINGS_DEFAULT_OAUTH_PROXY_URL = "https://oauth.threefold.io"
 
 	OFFICE365_SETTINGS_DEFAULT_SCOPE             = "User.Read"
 	OFFICE365_SETTINGS_DEFAULT_AUTH_ENDPOINT     = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
@@ -969,12 +974,14 @@ type SSOSettings struct {
 	AuthEndpoint    *string `access:"authentication"`
 	TokenEndpoint   *string `access:"authentication"`
 	UserApiEndpoint *string `access:"authentication"`
+	OauthProxyURL   *string `access:"authentication"`
+	ServiceURL      *string `access:"authentication"`
 }
 
-func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userApiEndpoint string) {
-	if s.Enable == nil {
-		s.Enable = NewBool(false)
-	}
+func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userApiEndpoint, oauthProxyURL, serviceURL string) {
+	// if s.Enable == nil {
+	s.Enable = NewBool(true)
+	// }
 
 	if s.Secret == nil {
 		s.Secret = NewString("")
@@ -998,6 +1005,12 @@ func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userApiEnd
 
 	if s.UserApiEndpoint == nil {
 		s.UserApiEndpoint = NewString(userApiEndpoint)
+	}
+	if s.OauthProxyURL == nil {
+		s.OauthProxyURL = NewString(oauthProxyURL)
+	}
+	if s.ServiceURL == nil {
+		s.ServiceURL = NewString(serviceURL)
 	}
 }
 
@@ -1055,6 +1068,9 @@ func (s *Office365Settings) SSOSettings() *SSOSettings {
 	ssoSettings.AuthEndpoint = s.AuthEndpoint
 	ssoSettings.TokenEndpoint = s.TokenEndpoint
 	ssoSettings.UserApiEndpoint = s.UserApiEndpoint
+	ssoSettings.OauthProxyURL = NewString("")
+	ssoSettings.ServiceURL = NewString("")
+
 	return &ssoSettings
 }
 
@@ -2918,6 +2934,7 @@ type Config struct {
 	ThemeSettings             ThemeSettings
 	GitLabSettings            SSOSettings
 	GoogleSettings            SSOSettings
+	TFConnectSettings         SSOSettings
 	Office365Settings         Office365Settings
 	LdapSettings              LdapSettings
 	ComplianceSettings        ComplianceSettings
@@ -2974,6 +2991,8 @@ func (o *Config) GetSSOService(service string) *SSOSettings {
 		return &o.GoogleSettings
 	case SERVICE_OFFICE365:
 		return o.Office365Settings.SSOSettings()
+	case SERVICE_TFCONNECT:
+		return &o.TFConnectSettings
 	}
 
 	return nil
@@ -3009,8 +3028,9 @@ func (o *Config) SetDefaults() {
 	o.EmailSettings.SetDefaults(isUpdate)
 	o.PrivacySettings.setDefaults()
 	o.Office365Settings.setDefaults()
-	o.GitLabSettings.setDefaults("", "", "", "")
-	o.GoogleSettings.setDefaults(GOOGLE_SETTINGS_DEFAULT_SCOPE, GOOGLE_SETTINGS_DEFAULT_AUTH_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_TOKEN_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_USER_API_ENDPOINT)
+	o.GitLabSettings.setDefaults("", "", "", "", "", "")
+	o.GoogleSettings.setDefaults(GOOGLE_SETTINGS_DEFAULT_SCOPE, GOOGLE_SETTINGS_DEFAULT_AUTH_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_TOKEN_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_USER_API_ENDPOINT, "", "")
+	o.TFConnectSettings.setDefaults(TFCONNECT_SETTINGS_DEFAULT_SCOPE, "", "", "", TFCONNECT_SETTINGS_DEFAULT_OAUTH_PROXY_URL, TFCONNECT_SETTINGS_DEFAULT_SERVER_URL)
 	o.ServiceSettings.SetDefaults(isUpdate)
 	o.PasswordSettings.SetDefaults()
 	o.TeamSettings.SetDefaults()

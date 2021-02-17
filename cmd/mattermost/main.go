@@ -13,6 +13,7 @@ import (
 
 	// Plugins
 	_ "github.com/mattermost/mattermost-server/v5/model/gitlab"
+	_ "github.com/mattermost/mattermost-server/v5/model/tfconnect"
 
 	// Enterprise Imports
 	_ "github.com/mattermost/mattermost-server/v5/imports"
