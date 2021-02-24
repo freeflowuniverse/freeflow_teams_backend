@@ -978,10 +978,12 @@ type SSOSettings struct {
 	ServiceURL      *string `access:"authentication"`
 }
 
-func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userApiEndpoint, oauthProxyURL, serviceURL string) {
-	// if s.Enable == nil {
-	s.Enable = NewBool(true)
-	// }
+func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userApiEndpoint, oauthProxyURL, serviceURL string, enabled bool) {
+	if s.Enable == nil || !enabled {
+		s.Enable = NewBool(false)
+	} else {
+		s.Enable = NewBool(true)
+	}
 
 	if s.Secret == nil {
 		s.Secret = NewString("")
@@ -3028,9 +3030,9 @@ func (o *Config) SetDefaults() {
 	o.EmailSettings.SetDefaults(isUpdate)
 	o.PrivacySettings.setDefaults()
 	o.Office365Settings.setDefaults()
-	o.GitLabSettings.setDefaults("", "", "", "", "", "")
-	o.GoogleSettings.setDefaults(GOOGLE_SETTINGS_DEFAULT_SCOPE, GOOGLE_SETTINGS_DEFAULT_AUTH_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_TOKEN_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_USER_API_ENDPOINT, "", "")
-	o.TFConnectSettings.setDefaults(TFCONNECT_SETTINGS_DEFAULT_SCOPE, "", "", "", TFCONNECT_SETTINGS_DEFAULT_OAUTH_PROXY_URL, TFCONNECT_SETTINGS_DEFAULT_SERVER_URL)
+	o.GitLabSettings.setDefaults("", "", "", "", "", "", false)
+	o.GoogleSettings.setDefaults(GOOGLE_SETTINGS_DEFAULT_SCOPE, GOOGLE_SETTINGS_DEFAULT_AUTH_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_TOKEN_ENDPOINT, GOOGLE_SETTINGS_DEFAULT_USER_API_ENDPOINT, "", "", false)
+	o.TFConnectSettings.setDefaults(TFCONNECT_SETTINGS_DEFAULT_SCOPE, "", "", "", TFCONNECT_SETTINGS_DEFAULT_OAUTH_PROXY_URL, TFCONNECT_SETTINGS_DEFAULT_SERVER_URL, true)
 	o.ServiceSettings.SetDefaults(isUpdate)
 	o.PasswordSettings.SetDefaults()
 	o.TeamSettings.SetDefaults()
