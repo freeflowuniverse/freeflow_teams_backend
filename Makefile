@@ -45,7 +45,7 @@ else
 	BUILD_ENTERPRISE_READY = false
 	BUILD_TYPE_NAME = team
 endif
-BUILD_WEBAPP_DIR ?= ../mattermost-webapp
+BUILD_WEBAPP_DIR ?= ../freeflow_teams_frontend
 BUILD_CLIENT = false
 BUILD_HASH_CLIENT = independant
 ifneq ($(wildcard $(BUILD_WEBAPP_DIR)/.),)
