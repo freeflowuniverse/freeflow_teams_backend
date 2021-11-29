@@ -49,6 +49,7 @@ const (
 	ServiceGoogle    = "google"
 	ServiceOffice365 = "office365"
 	ServiceOpenid    = "openid"
+	ServiceTFConnect = "tfconnect"
 
 	GenericNoChannelNotification = "generic_no_channel"
 	GenericNotification          = "generic"
@@ -237,7 +238,10 @@ const (
 	CloudSettingsDefaultCwsAPIURL = "https://portal.internal.prod.cloud.mattermost.com"
 	OpenidSettingsDefaultScope    = "profile openid email"
 
-	LocalModeSocketPath = "/var/tmp/mattermost_local.socket"
+	LocalModeSocketPath                   = "/var/tmp/mattermost_local.socket"
+	TFConnectSettingsDefaultScope         = "{\"user\": true, \"email\": true}"
+	TFConnectSettingsDefaultServerURL     = "https://login.threefold.me"
+	TFConnectSettingsDefaultOAuthProxyURL = "https://oauth.threefold.io"
 )
 
 func GetDefaultAppCustomURLSchemes() []string {
@@ -949,21 +953,25 @@ func (s *AnalyticsSettings) SetDefaults() {
 }
 
 type SSOSettings struct {
-	Enable            *bool   `access:"authentication_openid"`
-	Secret            *string `access:"authentication_openid"` // telemetry: none
-	Id                *string `access:"authentication_openid"` // telemetry: none
-	Scope             *string `access:"authentication_openid"` // telemetry: none
-	AuthEndpoint      *string `access:"authentication_openid"` // telemetry: none
-	TokenEndpoint     *string `access:"authentication_openid"` // telemetry: none
-	UserAPIEndpoint   *string `access:"authentication_openid"` // telemetry: none
-	DiscoveryEndpoint *string `access:"authentication_openid"` // telemetry: none
-	ButtonText        *string `access:"authentication_openid"` // telemetry: none
-	ButtonColor       *string `access:"authentication_openid"` // telemetry: none
+	Enable            *bool   `access:"authentication"`
+	Secret            *string `access:"authentication"` // telemetry: none
+	Id                *string `access:"authentication"` // telemetry: none
+	Scope             *string `access:"authentication"` // telemetry: none
+	AuthEndpoint      *string `access:"authentication"` // telemetry: none
+	TokenEndpoint     *string `access:"authentication"` // telemetry: none
+	UserApiEndpoint   *string `access:"authentication"` // telemetry: none
+	DiscoveryEndpoint *string `access:"authentication"` // telemetry: none
+	ButtonText        *string `access:"authentication"` // telemetry: none
+	ButtonColor       *string `access:"authentication"` // telemetry: none
+	OauthProxyURL     *string `access:"authentication`  // telemetry: none
+	ServiceURL        *string `access:"authentication"` // telemetry: none
 }
 
-func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userAPIEndpoint, buttonColor string) {
-	if s.Enable == nil {
+func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userAPIEndpoint, buttonColor, oauthProxyURL, serviceURL string, enabled bool) {
+	if s.Enable == nil || !enabled {
 		s.Enable = NewBool(false)
+	} else {
+		s.Enable = NewBool(true)
 	}
 
 	if s.Secret == nil {
@@ -990,8 +998,8 @@ func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userAPIEnd
 		s.TokenEndpoint = NewString(tokenEndpoint)
 	}
 
-	if s.UserAPIEndpoint == nil {
-		s.UserAPIEndpoint = NewString(userAPIEndpoint)
+	if s.UserApiEndpoint == nil {
+		s.UserApiEndpoint = NewString(userAPIEndpoint)
 	}
 
 	if s.ButtonText == nil {
@@ -1000,6 +1008,12 @@ func (s *SSOSettings) setDefaults(scope, authEndpoint, tokenEndpoint, userAPIEnd
 
 	if s.ButtonColor == nil {
 		s.ButtonColor = NewString(buttonColor)
+	}
+	if s.OauthProxyURL == nil {
+		s.OauthProxyURL = NewString(oauthProxyURL)
+	}
+	if s.ServiceURL == nil {
+		s.ServiceURL = NewString(serviceURL)
 	}
 }
 
@@ -1013,6 +1027,7 @@ type Office365Settings struct {
 	UserAPIEndpoint   *string `access:"authentication_openid"` // telemetry: none
 	DiscoveryEndpoint *string `access:"authentication_openid"` // telemetry: none
 	DirectoryId       *string `access:"authentication_openid"` // telemetry: none
+
 }
 
 func (s *Office365Settings) setDefaults() {
@@ -1062,7 +1077,9 @@ func (s *Office365Settings) SSOSettings() *SSOSettings {
 	ssoSettings.DiscoveryEndpoint = s.DiscoveryEndpoint
 	ssoSettings.AuthEndpoint = s.AuthEndpoint
 	ssoSettings.TokenEndpoint = s.TokenEndpoint
-	ssoSettings.UserAPIEndpoint = s.UserAPIEndpoint
+	ssoSettings.UserApiEndpoint = s.UserAPIEndpoint
+	ssoSettings.OauthProxyURL = NewString("")
+	ssoSettings.ServiceURL = NewString("")
 	return &ssoSettings
 }
 
@@ -3012,6 +3029,7 @@ type Config struct {
 	GoogleSettings            SSOSettings
 	Office365Settings         Office365Settings
 	OpenIdSettings            SSOSettings
+	TFConnectSettings         SSOSettings
 	LdapSettings              LdapSettings
 	ComplianceSettings        ComplianceSettings
 	LocalizationSettings      LocalizationSettings
@@ -3070,6 +3088,8 @@ func (o *Config) GetSSOService(service string) *SSOSettings {
 		return o.Office365Settings.SSOSettings()
 	case ServiceOpenid:
 		return &o.OpenIdSettings
+	case ServiceTFConnect:
+		return &o.TFConnectSettings
 	}
 
 	return nil
@@ -3106,9 +3126,10 @@ func (o *Config) SetDefaults() {
 	o.PrivacySettings.setDefaults()
 	o.Office365Settings.setDefaults()
 	o.Office365Settings.setDefaults()
-	o.GitLabSettings.setDefaults("", "", "", "", "")
-	o.GoogleSettings.setDefaults(GoogleSettingsDefaultScope, GoogleSettingsDefaultAuthEndpoint, GoogleSettingsDefaultTokenEndpoint, GoogleSettingsDefaultUserAPIEndpoint, "")
-	o.OpenIdSettings.setDefaults(OpenidSettingsDefaultScope, "", "", "", "#145DBF")
+	o.GitLabSettings.setDefaults("", "", "", "", "", "", "", false)
+	o.GoogleSettings.setDefaults(GoogleSettingsDefaultScope, GoogleSettingsDefaultAuthEndpoint, GoogleSettingsDefaultTokenEndpoint, GoogleSettingsDefaultUserAPIEndpoint, "", "", "", false)
+	o.OpenIdSettings.setDefaults(OpenidSettingsDefaultScope, "", "", "", "#145DBF", "", "", false)
+	o.TFConnectSettings.setDefaults(TFConnectSettingsDefaultScope, "", "", "", "", TFConnectSettingsDefaultOAuthProxyURL, TFConnectSettingsDefaultServerURL, true)
 	o.ServiceSettings.SetDefaults(isUpdate)
 	o.PasswordSettings.SetDefaults()
 	o.TeamSettings.SetDefaults()

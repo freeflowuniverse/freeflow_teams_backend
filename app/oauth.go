@@ -6,6 +6,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/base32"
 	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,7 @@ import (
 const (
 	OAuthCookieMaxAgeSeconds = 30 * 60 // 30 minutes
 	CookieOAuth              = "MMOAUTH"
+	CookieState              = "STOAUTH"
 	OpenIDScope              = "openid"
 )
 
@@ -701,6 +703,12 @@ func (a *App) GetOAuthStateToken(token string) (*model.Token, *model.AppError) {
 	return mToken, nil
 }
 
+type OauthProxyResponse struct {
+	Pubkey string `json:"publickey"`
+	//Email    string `json:"email"`
+	//Username string `json:"username"`
+}
+
 func (a *App) GetAuthorizationCode(w http.ResponseWriter, r *http.Request, service string, props map[string]string, loginHint string) (string, *model.AppError) {
 	provider, e := a.getSSOProvider(service)
 	if e != nil {
@@ -751,9 +759,44 @@ func (a *App) GetAuthorizationCode(w http.ResponseWriter, r *http.Request, servi
 		siteURL = GetProtocol(r) + "://" + r.Host
 	}
 
-	redirectURI := siteURL + "/signup/" + service + "/complete"
+	redirectUri := "/signup/" + service + "/complete"
+	authURL := ""
+	if service == model.ServiceTFConnect {
+		// get public_key
+		state = base32.StdEncoding.EncodeToString([]byte(model.MapToJSON(props)))
+		stateCookie := &http.Cookie{
+			Name:     CookieState,
+			Value:    state,
+			Path:     subpath,
+			MaxAge:   OAuthCookieMaxAgeSeconds,
+			Expires:  expiresAt,
+			HttpOnly: true,
+			Secure:   secure,
+		}
+		http.SetCookie(w, stateCookie)
+		// trim extra padding (=) becasue threefold connect only accepts alphanumeric
+		state = strings.TrimRight(state, "=")
+		resp, err := http.Get(*sso.OauthProxyURL + "/pubkey")
+		if err != nil {
+			return "", model.NewAppError("GetAuthorizationCode", fmt.Sprintf("Trying to get public key from oauth proxy failed status_code %d", resp.StatusCode), nil, fmt.Sprintf("Trying to get public key from oauth proxy failed status_code %d error was %s", resp.StatusCode, err.Error()), http.StatusInternalServerError)
+		}
+		defer resp.Body.Close()
+		body, _ := ioutil.ReadAll(resp.Body)
+		data := OauthProxyResponse{}
+		json.Unmarshal(body, &data)
 
-	authURL := endpoint + "?response_type=code&client_id=" + clientId + "&redirect_uri=" + url.QueryEscape(redirectURI) + "&state=" + url.QueryEscape(state)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			return "", model.NewAppError("GetAuthorizationCode", fmt.Sprintf("Getting public key from Oauth proxy server retruns status %d", resp.StatusCode), nil, fmt.Sprintf("Getting public key from Oauth proxy server retruns status %d", resp.StatusCode), http.StatusInternalServerError)
+		}
+		if len(data.Pubkey) == 0 {
+			return "", model.NewAppError("GetAuthorizationCode", "Failed to get public key from Oauth proxy server", nil, fmt.Sprintf("Failed to get public key from Oauth proxy server response was %s", string(body)), http.StatusInternalServerError)
+		}
+
+		// end get publiendpointc_key
+		authURL = *sso.ServiceURL + "?appid=" + r.Host + "&redirecturl=" + url.QueryEscape(redirectUri) + "&state=" + url.QueryEscape(state) + "&publickey=" + url.QueryEscape(data.Pubkey)
+	} else {
+		authURL = endpoint + "?response_type=code&client_id=" + clientId + "&redirect_uri=" + url.QueryEscape(redirectUri) + "&state=" + url.QueryEscape(state)
+	}
 
 	if scope != "" {
 		authURL += "&scope=" + utils.URLEncode(scope)
@@ -766,7 +809,49 @@ func (a *App) GetAuthorizationCode(w http.ResponseWriter, r *http.Request, servi
 	return authURL, nil
 }
 
-func (a *App) AuthorizeOAuthUser(w http.ResponseWriter, r *http.Request, service, code, state, redirectURI string) (io.ReadCloser, string, map[string]string, *model.User, *model.AppError) {
+func (a *App) TFAuthorizeOAuthUser(w http.ResponseWriter, r *http.Request, service, signedAttempt string) (io.ReadCloser, string, map[string]string, *model.User, *model.AppError) {
+	cookie, cookieErr := r.Cookie(CookieState)
+	if cookieErr != nil {
+		return nil, "", nil, nil, model.NewAppError("TFAuthorizeOAuthUser", "Failed to read cookie, make sure your browser allows cookies for this website", nil, "Failed to read cookie, make sure your browser allows cookies for this website", http.StatusNotImplemented)
+	}
+	state := cookie.Value
+
+	sso := a.Config().GetSSOService(service)
+	if sso == nil || !*sso.Enable {
+		return nil, "", nil, nil, model.NewAppError("TFAuthorizeOAuthUser", "api.user.authorize_oauth_user.unsupported.app_error", nil, "service="+service, http.StatusNotImplemented)
+	}
+	p := url.Values{}
+	p.Set("signedAttempt", signedAttempt)
+	p.Set("state", strings.TrimRight(state, "="))
+	req, requestErr := http.NewRequest("POST", *sso.OauthProxyURL+"/verify", strings.NewReader(p.Encode()))
+	if requestErr != nil {
+		return nil, "", nil, nil, model.NewAppError("TFAuthorizeOAuthUser", "could not create post request to Oauth proxy server", nil, requestErr.Error(), http.StatusNotImplemented)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := a.HTTPService().MakeClient(true).Do(req)
+	if err != nil {
+		return nil, "", nil, nil, model.NewAppError("TFAuthorizeOAuthUser", "Couldn't send verify request to Oauth proxy server", nil, err.Error(), http.StatusNotImplemented)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", nil, nil, model.NewAppError("TFAuthorizeOAuthUser", "Verification request to Oauth proxy server returns bad status", nil, fmt.Sprint("Verification request to Oauth proxy server returns status: %d", resp.StatusCode), http.StatusNotImplemented)
+	}
+
+	b, strErr := base32.StdEncoding.DecodeString(state)
+	if strErr != nil {
+		return nil, "", nil, nil, model.NewAppError("AuthorizeOAuthUser", "Failed to decode state object", nil, strErr.Error(), http.StatusBadRequest)
+	}
+
+	stateStr := string(b)
+	stateProps := model.MapFromJSON(strings.NewReader(stateStr))
+	teamId := stateProps["team_id"]
+
+	return resp.Body, teamId, stateProps, nil, nil
+}
+
+func (a *App) AuthorizeOAuthUser(w http.ResponseWriter, r *http.Request, service, code, state, redirectUri string) (io.ReadCloser, string, map[string]string, *model.User, *model.AppError) {
 	provider, e := a.getSSOProvider(service)
 	if e != nil {
 		return nil, "", nil, nil, e
@@ -830,7 +915,7 @@ func (a *App) AuthorizeOAuthUser(w http.ResponseWriter, r *http.Request, service
 	p.Set("client_secret", *sso.Secret)
 	p.Set("code", code)
 	p.Set("grant_type", model.AccessTokenGrantType)
-	p.Set("redirect_uri", redirectURI)
+	p.Set("redirect_uri", redirectUri)
 
 	req, requestErr := http.NewRequest("POST", *sso.TokenEndpoint, strings.NewReader(p.Encode()))
 	if requestErr != nil {
@@ -873,7 +958,7 @@ func (a *App) AuthorizeOAuthUser(w http.ResponseWriter, r *http.Request, service
 		}
 	}
 
-	req, requestErr = http.NewRequest("GET", *sso.UserAPIEndpoint, strings.NewReader(""))
+	req, requestErr = http.NewRequest("GET", *sso.UserApiEndpoint, strings.NewReader(""))
 	if requestErr != nil {
 		return nil, "", stateProps, nil, model.NewAppError("AuthorizeOAuthUser", "api.user.authorize_oauth_user.service.app_error", map[string]interface{}{"Service": service}, requestErr.Error(), http.StatusInternalServerError)
 	}
