@@ -1,4 +1,4 @@
-# Freeflow deployment guid
+# Freeflow deployment guide
 ## Prerequisites
 - install golang
 ```
@@ -15,7 +15,7 @@ ulimit -n 8096
 ```
 apt-get install make npm zip unzip docker.io docker-compose -y 
 ```
-## cloning the repos 
+## Cloning the repos 
 - clone frontend repo 
 ```
 git clone https://github.com/freeflowuniverse/freeflow_teams_frontend.git
@@ -28,7 +28,7 @@ git clone https://github.com/freeflowuniverse/freeflow_teams_backend.git
 ```
 git clone https://github.com/ashraffouda/mattermost-docker-mysql.git
 ```
-## building frontend and backend packages
+## Building frontend and backend packages
 ```
 mkdir -p freeflow_teams_frontend/dist
 cd freeflow_teams_backend
@@ -39,18 +39,20 @@ cd ../freeflow_teams_backend
 make build 
 make package
 ```
-## docker build prerequesits
+## Docker build prerequesits
 ```
 cd ../mattermost-docker-mysql
 cp ../freeflow_teams_backend/dist/mattermost-team-linux-amd64.tar.gz app/
 mkdir -p ./volumes/app/mattermost/{data,logs,config,plugins}
 chown -R 2000:2000 ./volumes/app/mattermost/
 ```
-## building mattermost image
+## Building mattermost image
 ```
 docker-compose build 
 ```
-## deploying freeflow teams (frontend, backend, mysqldb, nginx)
+## Deploying freeflow teams (frontend, backend, mysqldb, nginx)
 ```
 docker-compose up 
 ```
+## Backing up the deployment
+Simply you need to backup volumes in `mattermost-docker-mysql/volumes`
