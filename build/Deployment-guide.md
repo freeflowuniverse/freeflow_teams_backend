@@ -26,7 +26,7 @@ git clone https://github.com/freeflowuniverse/freeflow_teams_backend.git
 ```
 - clone the mattermost-docker repo
 ```
-git clone https://github.com/ashraffouda/mattermost-docker-mysql.git
+git clone https://github.com/freeflowuniverse/mattermost-docker-mysql.git
 ```
 ## Building frontend and backend packages
 ```
