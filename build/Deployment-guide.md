@@ -48,6 +48,10 @@ mkdir -p ./volumes/app/mattermost/{data,logs,config,plugins}
 chown -R 2000:2000 ./volumes/app/mattermost/
 ```
 ## 5.Building mattermost image
+if you changed the database config in docker-compose.yml for app section consider changing this line too to reflect the same data
+```
+ MM_SQLSETTINGS_DATASOURCE=mmuser:mmuser_password@tcp(db:3306)/mattermost?charset=utf8mb4,utf8&readTimeout=30s&writeTimeout=30s
+ ```
 ```
 docker-compose build 
 ```
