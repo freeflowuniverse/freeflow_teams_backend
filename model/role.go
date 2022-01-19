@@ -347,7 +347,7 @@ const (
 	SystemAdminRoleId           = "system_admin"
 	SystemPostAllRoleId         = "system_post_all"
 	SystemPostAllPublicRoleId   = "system_post_all_public"
-	SystemUserAccessTokenRoleId = "system_user_access_token"
+	SystemUserAccessTokenRoleId = "system_user"
 	SystemUserManagerRoleId     = "system_user_manager"
 	SystemReadOnlyAdminRoleId   = "system_read_only_admin"
 	SystemManagerRoleId         = "system_manager"
@@ -830,6 +830,9 @@ func MakeDefaultRoles() map[string]*Role {
 			PermissionCreateGroupChannel.Id,
 			PermissionViewMembers.Id,
 			PermissionCreateTeam.Id,
+			PermissionCreateUserAccessToken.Id,
+			PermissionReadUserAccessToken.Id,
+			PermissionRevokeUserAccessToken.Id,
 		},
 		SchemeManaged: true,
 		BuiltIn:       true,
@@ -860,10 +863,16 @@ func MakeDefaultRoles() map[string]*Role {
 	}
 
 	roles[SystemUserAccessTokenRoleId] = &Role{
-		Name:        "system_user_access_token",
-		DisplayName: "authentication.roles.system_user_access_token.name",
-		Description: "authentication.roles.system_user_access_token.description",
+		Name:        "system_user",
+		DisplayName: "authentication.roles.system_user.name",
+		Description: "authentication.roles.system_user.description",
 		Permissions: []string{
+			PermissionListPublicTeams.Id,
+			PermissionJoinPublicTeams.Id,
+			PermissionCreateDirectChannel.Id,
+			PermissionCreateGroupChannel.Id,
+			PermissionViewMembers.Id,
+			PermissionCreateTeam.Id,
 			PermissionCreateUserAccessToken.Id,
 			PermissionReadUserAccessToken.Id,
 			PermissionRevokeUserAccessToken.Id,

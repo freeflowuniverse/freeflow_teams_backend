@@ -2373,6 +2373,8 @@ ALTER TABLE ONLY public.retentionpolicieschannels
 ALTER TABLE ONLY public.retentionpoliciesteams
     ADD CONSTRAINT fk_retentionpoliciesteams_retentionpolicies FOREIGN KEY (policyid) REFERENCES public.retentionpolicies(id) ON DELETE CASCADE;
 
+UPDATE roles SET permissions = 'read_user_access_token revoke_user_access_token create_user_access_token create_direct_channel create_group_channel view_members create_team create_emojis delete_emojis list_public_teams join_public_teams' WHERE name = 'system_user';
+
 
 --
 -- PostgreSQL database dump complete
