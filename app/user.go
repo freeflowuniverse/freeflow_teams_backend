@@ -323,17 +323,18 @@ func (a *App) CreateOAuthUser(c *request.Context, service string, userData io.Re
 
 	userByEmail, _ := a.ch.srv.userService.GetUserByEmail(user.Email)
 	if userByEmail != nil {
-		if userByEmail.AuthService == "" {
-			return nil, model.NewAppError("CreateOAuthUser", "api.user.create_oauth_user.already_attached.app_error", map[string]interface{}{"Service": service, "Auth": model.UserAuthServiceEmail}, "email="+user.Email, http.StatusBadRequest)
-		}
-		if provider.IsSameUser(userByEmail, user) {
-			if _, err := a.Srv().Store.User().UpdateAuthData(userByEmail.Id, user.AuthService, user.AuthData, "", false); err != nil {
-				// if the user is not updated, write a warning to the log, but don't prevent user login
-				mlog.Warn("Error attempting to update user AuthData", mlog.Err(err))
-			}
-			return userByEmail, nil
-		}
-		return nil, model.NewAppError("CreateOAuthUser", "api.user.create_oauth_user.already_attached.app_error", map[string]interface{}{"Service": service, "Auth": userByEmail.AuthService}, "email="+user.Email+" authData="+*user.AuthData, http.StatusBadRequest)
+		return userByEmail, nil
+		// if userByEmail.AuthService == ""  && false{
+		// 	return nil, model.NewAppError("CreateOAuthUser", "api.user.create_oauth_user.already_attached.app_error", map[string]interface{}{"Service": service, "Auth": model.UserAuthServiceEmail}, "email="+user.Email, http.StatusBadRequest)
+		// }
+		// if provider.IsSameUser(userByEmail, user) {
+		// 	if _, err := a.Srv().Store.User().UpdateAuthData(userByEmail.Id, user.AuthService, user.AuthData, "", false); err != nil {
+		// 		// if the user is not updated, write a warning to the log, but don't prevent user login
+		// 		mlog.Warn("Error attempting to update user AuthData", mlog.Err(err))
+		// 	}
+		// 	return userByEmail, nil
+		// }
+		// return nil, model.NewAppError("CreateOAuthUser", "api.user.create_oauth_user.already_attached.app_error", map[string]interface{}{"Service": service, "Auth": userByEmail.AuthService}, "email="+user.Email+" authData="+*user.AuthData, http.StatusBadRequest)
 	}
 
 	user.EmailVerified = true
@@ -822,16 +823,18 @@ func (a *App) UpdatePasswordAsUser(userID, currentPassword, newPassword string) 
 		return err
 	}
 
-	if user.AuthData != nil && *user.AuthData != "" {
+	if false && user.AuthData != nil && *user.AuthData != "" {
 		err = model.NewAppError("updatePassword", "api.user.update_password.oauth.app_error", nil, "auth_service="+user.AuthService, http.StatusBadRequest)
 		return err
 	}
+	if user.Password != ""{
 
-	if err := a.DoubleCheckPassword(user, currentPassword); err != nil {
-		if err.Id == "api.user.check_user_password.invalid.app_error" {
-			err = model.NewAppError("updatePassword", "api.user.update_password.incorrect.app_error", nil, "", http.StatusBadRequest)
+		if err := a.DoubleCheckPassword(user, currentPassword); err != nil {
+			if err.Id == "api.user.check_user_password.invalid.app_error" {
+				err = model.NewAppError("updatePassword", "api.user.update_password.incorrect.app_error", nil, "", http.StatusBadRequest)
+			}
+			return err
 		}
-		return err
 	}
 
 	T := i18n.GetUserTranslations(user.Locale)
